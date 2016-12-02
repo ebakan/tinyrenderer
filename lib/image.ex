@@ -21,4 +21,23 @@ defmodule Tinyrenderer.Image do
   def set(pixel_data, x, y, arr) do
     pixel_data |> List.update_at(y, fn(row) -> row |> List.replace_at(x, arr) end)
   end
+
+  def line(pixel_data, x0, y0, x1, y1) do
+    line(pixel_data, x0, y0, x1, y1, [255, 255, 255])
+  end
+  def line(pixel_data, x0, y0, x1, y1, %{r: r, g: g, b: b}) do
+    line(pixel_data, x0, y0, x1, y1, [r, g, b])
+  end
+  def line(pixel_data, x0, y0, x1, y1, color) do
+    iters = 1000
+    Enum.reduce(0..iters, pixel_data, fn(i, data) ->
+      t = i / iters
+      x = x0 * (1 - t) + x1 * t
+      y = y0 * (1 - t) + y1 * t
+      IO.inspect x
+      IO.inspect y
+      IO.inspect color
+      set(data, round(x), round(y), color)
+    end)
+  end
 end
