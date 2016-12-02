@@ -28,6 +28,9 @@ defmodule Tinyrenderer.Image do
   def line(pixel_data, x0, y0, x1, y1, %{r: r, g: g, b: b}) do
     line(pixel_data, x0, y0, x1, y1, [b, g, r])
   end
+  def line(pixel_data, x0, y0, x1, y1, color) when x0 - x1 == 0 and  y0 - y1 == 0 do
+    set(pixel_data, x0, y0, color)
+  end
   def line(pixel_data, x0, y0, x1, y1, color) when abs(x0 - x1) < abs(y0 - y1) do
     line_steep(pixel_data, x0, y0, x1, y1, color)
   end
