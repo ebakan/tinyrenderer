@@ -3,7 +3,7 @@ defmodule Tinyrenderer.Image do
     new(height: height, width: width, color: [0, 0, 0])
   end
   def new(height: height, width: width, color: %{r: r, g: g, b: b}) do
-    new(height: height, width: width, color: [r, g, b])
+    new(height: height, width: width, color: [b, g, r])
   end
   def new(height: height, width: width, color: color) do
     Enum.map(0..height-1, fn(_y) -> Enum.map(0..width-1, fn(_x) -> color end) end)
@@ -17,27 +17,33 @@ defmodule Tinyrenderer.Image do
     Bump.pixel_data(filename)
   end
 
-  def set(pixel_data, x, y, %{r: r, g: g, b: b}), do: set(pixel_data, x, y, [r,g,b])
-  def set(pixel_data, x, y, arr) do
-    pixel_data |> List.update_at(y, fn(row) -> row |> List.replace_at(x, arr) end)
+  def set(pixel_data, x, y, %{r: r, g: g, b: b}), do: set(pixel_data, x, y, [b, g, r])
+  def set(pixel_data, x, y, color) do
+    pixel_data |> List.update_at(y, fn(row) -> row |> List.replace_at(x, color) end)
   end
 
   def line(pixel_data, x0, y0, x1, y1) do
     line(pixel_data, x0, y0, x1, y1, [255, 255, 255])
   end
   def line(pixel_data, x0, y0, x1, y1, %{r: r, g: g, b: b}) do
-    line(pixel_data, x0, y0, x1, y1, [r, g, b])
+    line(pixel_data, x0, y0, x1, y1, [b, g, r])
+  end
+  def line(pixel_data, x0, y0, x1, y1, color) when abs(x0 - x1) < abs(y0 - y1) do
+    line_steep(pixel_data, x0, y0, x1, y1, color)
   end
   def line(pixel_data, x0, y0, x1, y1, color) do
-    iters = 1000
-    Enum.reduce(0..iters, pixel_data, fn(i, data) ->
-      t = i / iters
-      x = x0 * (1 - t) + x1 * t
+    Enum.reduce(x0..x1, pixel_data, fn(x, data) ->
+      t = (x - x0) / (x1 - x0)
       y = y0 * (1 - t) + y1 * t
-      IO.inspect x
-      IO.inspect y
-      IO.inspect color
-      set(data, round(x), round(y), color)
+      set(data, x, round(y), color)
+    end)
+  end
+
+  defp line_steep(pixel_data, x0, y0, x1, y1, color) do
+    Enum.reduce(y0..y1, pixel_data, fn(y, data) ->
+      t = (y - y0) / (y1 - y0)
+      x = x0 * (1 - t) + x1 * t
+      set(data, round(x), y, color)
     end)
   end
 end
