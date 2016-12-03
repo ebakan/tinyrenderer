@@ -101,10 +101,10 @@ defmodule Tinyrenderer.Image do
     |> Enum.reject(&(&1 |> elem(1) |> Map.values |> Enum.any?(fn(v) -> v < 0 end)))
     |> Enum.map(fn {pixel, b_coords} -> pixel |> Map.merge(%{z: Vector.dot(z_vec, b_coords)}) end)
     |> Enum.reduce({zbuffer, image}, fn(pixel, {zbuf, img}) ->
-      zbuf_val = Enum.at(zbuf, pixel.y * image.width + pixel.x)
+      zbuf_val = zbuf[pixel.y * image.width + pixel.x]
       if is_nil(zbuf_val) or zbuf_val < pixel.z do
         {
-          zbuf |> List.replace_at(pixel.y * image.width + pixel.x, pixel.z),
+          %{zbuf | pixel.y * image.width + pixel.x => pixel.z},
           img |> set(pixel.x, pixel.y, color)
         }
       else
@@ -129,7 +129,9 @@ defmodule Tinyrenderer.Image do
   end
 
   def render_model(image, model, color_fn, light_dir) do
-    zbuffer = Enum.map(0..(image.width * image.height), fn _ -> nil end)
+    zbuffer = (0..(image.width * image.height))
+              |> Enum.map(&({&1, nil}))
+              |> Map.new
     model.faces
     |> Enum.reduce({zbuffer, image}, fn(face, {zbuf, img}) ->
       vertices = face
@@ -155,8 +157,8 @@ defmodule Tinyrenderer.Image do
   # Scale a vertex from [[-1..1], [-1..1]] to [[0..width], [0..height]]
   defp scale_vertex(vertex, image) do
     %{vertex |
-      x: round((vertex.x + 1) * image.width / 2),
-      y: round((vertex.y + 1) * image.height / 2),
+      x: round((vertex.x + 1) * (image.width - 1) / 2),
+      y: round((vertex.y + 1) * (image.height - 1) / 2),
     }
   end
 
