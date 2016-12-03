@@ -1,4 +1,5 @@
 defmodule Tinyrenderer.OBJ.Model do
+  # Module for serializing and deserializing Wavefront .obj files
   alias __MODULE__
 
   defstruct vertices: [],
@@ -6,7 +7,7 @@ defmodule Tinyrenderer.OBJ.Model do
             normals: [],
             faces: []
 
-  def read(filename) do
+  def read!(filename) do
     filename
     |> File.stream!
     |> Stream.with_index
@@ -62,7 +63,7 @@ defmodule Tinyrenderer.OBJ.Model do
     |> reverse
   end
 
-  def write(model, filename) do
+  def write!(model, filename) do
     File.open!(filename)
     |> File.write!(
       """
@@ -82,6 +83,8 @@ defmodule Tinyrenderer.OBJ.Model do
     )
   end
 
+  # Because Elixir Lists are linked lists in Erlang, it's faster to prepend
+  # new data and reverse at the end than to append (O(n) vs O(n^2))
   defp reverse(model) do
     %Model{
       vertices: model.vertices |> Enum.reverse,
@@ -91,6 +94,8 @@ defmodule Tinyrenderer.OBJ.Model do
     }
   end
 
+  # Floating point numbers can be serialized as `1`, which
+  # `String.to_float` will fail on
   defp parse_float(str) do
     str |> Float.parse |> elem(0)
   end
