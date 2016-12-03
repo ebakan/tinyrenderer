@@ -1,7 +1,7 @@
 defmodule Tinyrenderer.Image do
   # Functions for reading, manipulating, and writing images
   alias __MODULE__
-  alias Tinyrenderer.Math
+  alias Tinyrenderer.Vector
 
   defstruct [:pixel_data, :width, :height]
 
@@ -101,8 +101,8 @@ defmodule Tinyrenderer.Image do
   end
 
   defp barycentric_coords(p, [v0, v1, v2]) do
-    u = Math.cross(%{x: v2.x - v0.x, y: v1.x - v0.x, z: v0.x - p.x},
-                   %{x: v2.y - v0.y, y: v1.y - v0.y, z: v0.y - p.y})
+    u = Vector.cross(%{x: v2.x - v0.x, y: v1.x - v0.x, z: v0.x - p.x},
+                     %{x: v2.y - v0.y, y: v1.y - v0.y, z: v0.y - p.y})
     if abs(u.z) < 1 do
       %{x: -1, y: 1, z: 1} # triangle is degenerate
     else
@@ -111,17 +111,30 @@ defmodule Tinyrenderer.Image do
   end
 
   # Render a model with a color literal or function
-  def render_model(image, model, color) when not is_function(color) do
-    render_model(image, model, fn() -> color end)
+  def render_model(image, model, color, light_dir) when not is_function(color) do
+    render_model(image, model, fn() -> color end, light_dir)
   end
 
-  def render_model(image, model, color_fn) do
+  def render_model(image, model, color_fn, light_dir) do
     model.faces
     |> Enum.reduce(image, fn(face, img) ->
       vertices = face
       |> Enum.map(&Map.get(&1, :vertex))
       |> Enum.map(&Enum.at(model.vertices, &1))
-      draw_triangle(img, vertices, color_fn.())
+      [v0, v1, v2] = vertices
+      intensity =  Vector.cross(Vector.sub(v2, v0), Vector.sub(v1, v0))
+                   |> Vector.normalize
+                   |> Vector.dot(light_dir)
+      if intensity > 0 do
+        color =
+          case color_fn.() do
+            c when is_map(c) -> [c.b, c.g, c.r]
+            c -> c
+          end
+        draw_triangle(img, vertices, color |> Enum.map(&(round(&1 * intensity))))
+      else
+        img
+      end
     #draw_wireframe(img, vertices, color_fn.())
     end)
   end
