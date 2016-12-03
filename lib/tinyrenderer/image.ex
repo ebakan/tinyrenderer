@@ -81,7 +81,7 @@ defmodule Tinyrenderer.Image do
     end)
   end
 
-  def draw_triangle(image, vertices, color) do
+  def draw_triangle(image, vertices, zbuffer, color) do
     vertices = vertices |> Enum.map(&scale_vertex(&1, image))
     x_coords = vertices |> Enum.map(&Map.get(&1, :x))
     y_coords = vertices |> Enum.map(&Map.get(&1, :y))
@@ -90,14 +90,27 @@ defmodule Tinyrenderer.Image do
     y_min= max(0, y_coords |> Enum.min)
     y_max= min(image.height, y_coords |> Enum.max)
     [v0, v1, v2] = vertices
+    z_vec = %{x: v0.z, y: v1.z, z: v2.z}
     pixels = Enum.map(x_min..x_max, fn(x) ->
       Enum.map(y_min..y_max, fn(y) ->
         %{x: x, y: y}
       end)
     end) |> List.flatten
     pixels
-    |> Enum.reject(&(barycentric_coords(&1, vertices) |> Map.values |> Enum.any?(fn(v) -> v < 0 end)))
-    |> Enum.reduce(image, &set(&2, &1.x, &1.y, color))
+    |> Enum.map(&({&1, barycentric_coords(&1, vertices)}))
+    |> Enum.reject(&(&1 |> elem(1) |> Map.values |> Enum.any?(fn(v) -> v < 0 end)))
+    |> Enum.map(fn {pixel, b_coords} -> pixel |> Map.merge(%{z: Vector.dot(z_vec, b_coords)}) end)
+    |> Enum.reduce({zbuffer, image}, fn(pixel, {zbuf, img}) ->
+      zbuf_val = Enum.at(zbuf, pixel.y * image.width + pixel.x)
+      if is_nil(zbuf_val) or zbuf_val < pixel.z do
+        {
+          zbuf |> List.replace_at(pixel.y * image.width + pixel.x, pixel.z),
+          img |> set(pixel.x, pixel.y, color)
+        }
+      else
+        {zbuf, img}
+      end
+    end)
   end
 
   defp barycentric_coords(p, [v0, v1, v2]) do
@@ -116,8 +129,9 @@ defmodule Tinyrenderer.Image do
   end
 
   def render_model(image, model, color_fn, light_dir) do
+    zbuffer = Enum.map(0..(image.width * image.height), fn _ -> nil end)
     model.faces
-    |> Enum.reduce(image, fn(face, img) ->
+    |> Enum.reduce({zbuffer, image}, fn(face, {zbuf, img}) ->
       vertices = face
       |> Enum.map(&Map.get(&1, :vertex))
       |> Enum.map(&Enum.at(model.vertices, &1))
@@ -131,12 +145,11 @@ defmodule Tinyrenderer.Image do
             c when is_map(c) -> [c.b, c.g, c.r]
             c -> c
           end
-        draw_triangle(img, vertices, color |> Enum.map(&(round(&1 * intensity))))
+        draw_triangle(img, vertices, zbuf, color |> Enum.map(&(round(&1 * intensity))))
       else
-        img
+        {zbuf, img}
       end
-    #draw_wireframe(img, vertices, color_fn.())
-    end)
+    end) |> elem(1)
   end
 
   # Scale a vertex from [[-1..1], [-1..1]] to [[0..width], [0..height]]
