@@ -162,6 +162,17 @@ defmodule Tinyrenderer.Image do
                           Vector.mul(v2, b_coord.z)))
   end
 
+  defp look_at(eye, center), do: look_at(eye, center, %{x: 0, y: 1, z: 0})
+  defp look_at(eye, center, up) do
+    z = eye |> Vector.sub(center) |> Vector.normalize
+    x = up |> Vector.cross(z) |> Vector.normalize
+    y = z |> Vector.cross(x) |> Vector.normalize
+    ([x: x, y: y, z: z]
+    |> Enum.map(fn({key, vec}) ->
+      [vec.x, vec.y, vec.z, center[key]]
+    end)) ++ [[0, 0, 0, 1]]
+  end
+
   # Render a model with a color literal or function
   def render_model(image, model), do: render_model(image, model, [])
   def render_model(image, model, opts) do
@@ -171,13 +182,17 @@ defmodule Tinyrenderer.Image do
     height = image.height
     texture = opts[:texture]
     light_dir = opts[:light_dir] || %{x: 0, y: 0, z: -1}
-    camera = opts[:camera] || %{x: 0, y: 0, z: 1}
+    eye = opts[:eye] || %{x: 0, y: 0, z: 1}
+    center = opts[:center] || %{x: 0, y: 0, z: 0}
     depth = opts[:depth] || 255
 
     # Projection initialization
-    projection = Matrix.identity(4) |> Matrix.set(3, 2, -1/camera.z)
+    model_view = eye |> look_at(center)
+    projection = Matrix.identity(4) |> Matrix.set(3, 2, -1 / (eye |> Vector.sub(center) |> Vector.norm))
     viewport = gen_viewport(x: width / 8, y: height / 8, w: width * 3 / 4, h: height * 3 / 4, depth: depth)
-    transform = Matrix.mul(viewport, projection)
+    transform = viewport
+                |> Matrix.mul(projection)
+                |> Matrix.mul(model_view)
 
     zbuffer = (0..(width * height))
               |> Enum.map(&({&1, nil}))
