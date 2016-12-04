@@ -106,7 +106,7 @@ defmodule Tinyrenderer.Image do
     end)
   end
 
-  def draw_triangle(image, vertices, zbuffer, color) do
+  def draw_triangle(image, vertices, zbuffer, opts \\ [{:color, [255, 255, 255]}]) do
     vertices = vertices |> Enum.map(&scale_vertex(&1, image))
     x_coords = vertices |> Enum.map(&Map.get(&1, :x))
     y_coords = vertices |> Enum.map(&Map.get(&1, :y))
@@ -124,13 +124,22 @@ defmodule Tinyrenderer.Image do
     pixels
     |> Enum.map(&({&1, barycentric_coords(&1, vertices)}))
     |> Enum.reject(&(&1 |> elem(1) |> Map.values |> Enum.any?(fn(v) -> v < 0 end)))
-    |> Enum.map(fn {pixel, b_coords} -> pixel |> Map.merge(%{z: Vector.dot(z_vec, b_coords)}) end)
-    |> Enum.reduce({zbuffer, image}, fn(pixel, {zbuf, img}) ->
+    |> Enum.map(fn {pixel, b_coords} -> {pixel |> Map.merge(%{z: Vector.dot(z_vec, b_coords)}), b_coords} end)
+    |> Enum.reduce({zbuffer, image}, fn({pixel, b_coords}, {zbuf, img}) ->
       zbuf_val = zbuf[pixel.y * image.width + pixel.x]
       if is_nil(zbuf_val) or zbuf_val < pixel.z do
+        intensity = opts[:intensity] || 1;
+        color =
+          if opts[:texture] do
+            {texture, texture_coords} = opts[:texture]
+            texture_b_coords = inv_barycentric_coords(b_coords, texture_coords)
+            texture.pixel_data[round(texture_b_coords.y * texture.height)][round(texture_b_coords.x * texture.width)]
+          else
+            opts[:color]
+          end
         {
           %{zbuf | pixel.y * image.width + pixel.x => pixel.z},
-          img |> set(pixel.x, pixel.y, color)
+          img |> set(pixel.x, pixel.y, color |> Enum.map(&(round(&1 * intensity))))
         }
       else
         {zbuf, img}
@@ -148,12 +157,19 @@ defmodule Tinyrenderer.Image do
     end
   end
 
-  # Render a model with a color literal or function
-  def render_model(image, model, color, light_dir) when not is_function(color) do
-    render_model(image, model, fn() -> color end, light_dir)
+  defp inv_barycentric_coords(b_coord, [v0, v1, v2]) do
+    Vector.add(Vector.mul(v0, b_coord.x),
+               Vector.add(Vector.mul(v1, b_coord.y),
+                          Vector.mul(v2, b_coord.z)))
   end
 
-  def render_model(image, model, color_fn, light_dir) do
+  # Render a model with a color literal or function
+  def render_model(image, model, color, light_dir), do: render_model(image, model, color, light_dir, nil)
+  def render_model(image, model, color, light_dir, texture) when not is_function(color) do
+    render_model(image, model, fn() -> color end, light_dir, texture)
+  end
+
+  def render_model(image, model, color_fn, light_dir, texture) do
     zbuffer = (0..(image.width * image.height))
               |> Enum.map(&({&1, nil}))
               |> Map.new
@@ -167,12 +183,20 @@ defmodule Tinyrenderer.Image do
                    |> Vector.normalize
                    |> Vector.dot(light_dir)
       if intensity > 0 do
-        color =
-          case color_fn.() do
-            c when is_map(c) -> [c.b, c.g, c.r]
-            c -> c
-          end
-        draw_triangle(img, vertices, zbuf, color |> Enum.map(&(round(&1 * intensity))))
+        if texture do
+          texture_coords = face
+          |> Enum.map(&Map.get(&1, :texture))
+          |> Enum.map(&Enum.at(model.textures, &1))
+          |> Enum.map(&uvw_to_xyz/1)
+          draw_triangle(img, vertices, zbuf, intensity: intensity, texture: {texture, texture_coords})
+        else
+          color =
+            case color_fn.() do
+              c when is_map(c) -> [c.b, c.g, c.r]
+              c -> c
+            end
+          draw_triangle(img, vertices, zbuf, intensity: intensity, color: color)
+        end
       else
         {zbuf, img}
       end
@@ -185,6 +209,10 @@ defmodule Tinyrenderer.Image do
       x: round((vertex.x + 1) * (image.width - 1) / 2),
       y: round((vertex.y + 1) * (image.height - 1) / 2),
     }
+  end
+
+  defp uvw_to_xyz(vertex) do
+    %{x: vertex.u, y: vertex.v, z: vertex.w}
   end
 
   def rand_color() do

@@ -1,1 +1,1 @@
-%{"bump": {:hex, :bump, "0.1.0", "11235ad9bcb275e7e752409f37c603b1138149c8dd551f17c802c961ec7ea463", [:mix], []}}
+%{"bump": {:git, "https://github.com/ebakan/ex_bump", "4c33dc4f2bc5b8634dde2fef56ebd6f68608be8b", []}}

@@ -9,6 +9,14 @@ defmodule Tinyrenderer.Vector do
     }
   end
 
+  def add(u, v) do
+    %{
+      x: u.x + v.x,
+      y: u.y + v.y,
+      z: u.z + v.z
+    }
+  end
+
   def sub(u, v) do
     %{
       x: u.x - v.x,

@@ -10,5 +10,5 @@ white = %{r: 255, g: 255, b: 255}
 light_dir = %{x: 0, y: 0, z: -1}
 
 Image.new(height: height, width: width)
-|> Image.render_model(Model.read!("obj/african_head.obj"), white, light_dir)
+|> Image.render_model(Model.read!("obj/african_head.obj"), white, light_dir, Image.read("obj/african_head_diffuse.bmp"))
 |> Image.write("output.bmp")
