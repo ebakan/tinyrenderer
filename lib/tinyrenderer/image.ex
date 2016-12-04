@@ -14,7 +14,11 @@ defmodule Tinyrenderer.Image do
   end
   def new(height: height, width: width, color: color) do
     %Image{
-      pixel_data: Enum.map(0..height-1, fn(_y) -> Enum.map(0..width-1, fn(_x) -> color end) end),
+      pixel_data:
+        Enum.map(0..height-1, fn(_y) ->
+          Enum.map(0..width-1, fn(_x) ->
+            color end)
+        end) |> list_to_map,
       width: width,
       height: height
     }
@@ -22,24 +26,45 @@ defmodule Tinyrenderer.Image do
 
   # Write to a BMP
   def write(image, filename) do
-    Bump.write(filename: filename, pixel_data: image.pixel_data)
+    Bump.write(filename: filename, pixel_data: image.pixel_data |> map_to_list)
   end
 
   # Read data from a BMP
   def read(filename) do
     pixel_data = Bump.pixel_data(filename)
     %Image{
-      pixel_data: pixel_data,
+      pixel_data: pixel_data |> list_to_map,
       width: pixel_data |> Enum.at(0) |> length,
       height: pixel_data |> length
     }
+  end
+
+  defp map_to_list(map) do
+    map |> Enum.sort |> Keyword.values |> Enum.map(&(&1 |> Enum.sort |> Keyword.values))
+  end
+
+  defp list_to_map(list) do
+    list
+    |> Enum.with_index
+    |> Enum.map(fn {row, i} ->
+      {
+        i,
+        row
+        |> Enum.with_index
+        |> Enum.map(fn {val, j} ->
+          {j, val}
+        end)
+        |> Map.new
+      }
+    end)
+    |> Map.new
   end
 
   # Set a pixel to a color
   def set(image, x, y, %{r: r, g: g, b: b}), do: set(image, x, y, [b, g, r])
   def set(image, x, y, color) do
     %{image |
-      pixel_data: image.pixel_data |> List.update_at(y, fn(row) -> row |> List.replace_at(x, color) end)
+      pixel_data: image.pixel_data |> Map.update!(y, fn(row) -> %{row | x => color} end)
     }
   end
 
@@ -154,7 +179,7 @@ defmodule Tinyrenderer.Image do
     end) |> elem(1)
   end
 
-  # Scale a vertex from [[-1..1], [-1..1]] to [[0..width], [0..height]]
+  # Scale a vertex from [[-1..1], [-1..1]] to [[0..width - 1], [0..height - 1]]
   defp scale_vertex(vertex, image) do
     %{vertex |
       x: round((vertex.x + 1) * (image.width - 1) / 2),
