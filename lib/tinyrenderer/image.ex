@@ -1,7 +1,7 @@
 defmodule Tinyrenderer.Image do
   # Functions for reading, manipulating, and writing images
   alias __MODULE__
-  alias Tinyrenderer.Vector
+  alias Tinyrenderer.{Vector, Matrix}
 
   defstruct [:pixel_data, :width, :height]
 
@@ -107,13 +107,12 @@ defmodule Tinyrenderer.Image do
   end
 
   def draw_triangle(image, vertices, zbuffer, opts \\ [{:color, [255, 255, 255]}]) do
-    vertices = vertices |> Enum.map(&scale_vertex(&1, image))
     x_coords = vertices |> Enum.map(&Map.get(&1, :x))
     y_coords = vertices |> Enum.map(&Map.get(&1, :y))
-    x_min= max(0, x_coords |> Enum.min)
-    x_max= min(image.width, x_coords |> Enum.max)
-    y_min= max(0, y_coords |> Enum.min)
-    y_max= min(image.height, y_coords |> Enum.max)
+    x_min = x_coords |> Enum.min |> max(0) |> min(image.width - 1)
+    x_max = x_coords |> Enum.max |> min(image.width - 1) |> max(0)
+    y_min = y_coords |> Enum.min |> max(0) |> min(image.height - 1)
+    y_max = y_coords |> Enum.max |> min(image.height - 1) |> max(0)
     [v0, v1, v2] = vertices
     z_vec = %{x: v0.z, y: v1.z, z: v2.z}
     pixels = Enum.map(x_min..x_max, fn(x) ->
@@ -164,43 +163,66 @@ defmodule Tinyrenderer.Image do
   end
 
   # Render a model with a color literal or function
-  def render_model(image, model, color, light_dir), do: render_model(image, model, color, light_dir, nil)
-  def render_model(image, model, color, light_dir, texture) when not is_function(color) do
-    render_model(image, model, fn() -> color end, light_dir, texture)
-  end
+  def render_model(image, model), do: render_model(image, model, [])
+  def render_model(image, model, opts) do
+    # Initial config
+    # Parameter values
+    width = image.width
+    height = image.height
+    texture = opts[:texture]
+    light_dir = opts[:light_dir] || %{x: 0, y: 0, z: -1}
+    camera = opts[:camera] || %{x: 0, y: 0, z: 1}
+    depth = opts[:depth] || 255
 
-  def render_model(image, model, color_fn, light_dir, texture) do
-    zbuffer = (0..(image.width * image.height))
+    # Projection initialization
+    projection = Matrix.identity(4) |> Matrix.set(3, 2, -1/camera.z)
+    viewport = gen_viewport(x: width / 8, y: height / 8, w: width * 3 / 4, h: height * 3 / 4, depth: depth)
+    transform = Matrix.mul(viewport, projection)
+
+    zbuffer = (0..(width * height))
               |> Enum.map(&({&1, nil}))
               |> Map.new
+
     model.faces
     |> Enum.reduce({zbuffer, image}, fn(face, {zbuf, img}) ->
       vertices = face
-      |> Enum.map(&Map.get(&1, :vertex))
-      |> Enum.map(&Enum.at(model.vertices, &1))
+                 |> Enum.map(&Map.get(&1, :vertex))
+                 |> Enum.map(&Enum.at(model.vertices, &1))
+      projected_vertices = vertices
+                           |> Enum.map(&Matrix.mul(transform, &1))
+                           |> Enum.map(&Matrix.to_vector/1)
+                           |> Enum.map(&Vector.round_values/1)
       [v0, v1, v2] = vertices
-      intensity =  Vector.cross(Vector.sub(v2, v0), Vector.sub(v1, v0))
-                   |> Vector.normalize
-                   |> Vector.dot(light_dir)
+      intensity = Vector.cross(Vector.sub(v2, v0), Vector.sub(v1, v0))
+                  |> Vector.normalize
+                  |> Vector.dot(light_dir)
       if intensity > 0 do
         if texture do
           texture_coords = face
-          |> Enum.map(&Map.get(&1, :texture))
-          |> Enum.map(&Enum.at(model.textures, &1))
-          |> Enum.map(&uvw_to_xyz/1)
-          draw_triangle(img, vertices, zbuf, intensity: intensity, texture: {texture, texture_coords})
+                           |> Enum.map(&Map.get(&1, :texture))
+                           |> Enum.map(&Enum.at(model.textures, &1))
+                           |> Enum.map(&uvw_to_xyz/1)
+          draw_triangle(img, projected_vertices, zbuf, intensity: intensity, texture: {texture, texture_coords})
         else
-          color =
-            case color_fn.() do
-              c when is_map(c) -> [c.b, c.g, c.r]
-              c -> c
-            end
-          draw_triangle(img, vertices, zbuf, intensity: intensity, color: color)
+          color = opts[:color] || [255, 255, 255]
+          color = if is_function(color), do: color.(), else: color
+          color = if is_map(color), do: [color.b, color.g, color.r], else: color
+          draw_triangle(img, projected_vertices, zbuf, intensity: intensity, color: color)
         end
       else
         {zbuf, img}
       end
     end) |> elem(1)
+  end
+
+  defp gen_viewport(x: x, y: y, w: w, h: h, depth: depth) do
+    Matrix.identity(4)
+    |> Matrix.set(0, 3, x + w / 2)
+    |> Matrix.set(1, 3, y + h / 2)
+    |> Matrix.set(2, 3, depth / 2)
+    |> Matrix.set(0, 0, w / 2)
+    |> Matrix.set(1, 1, h / 2)
+    |> Matrix.set(2, 2, depth / 2)
   end
 
   # Scale a vertex from [[-1..1], [-1..1]] to [[0..width - 1], [0..height - 1]]

@@ -44,4 +44,12 @@ defmodule Tinyrenderer.Vector do
   def normalize(u) do
     u |> mul(1 / norm(u))
   end
+
+  def round_values(u) do
+    u
+    |> Enum.map(fn {k,v} ->
+      {k, round(v)}
+    end)
+    |> Map.new
+  end
 end
