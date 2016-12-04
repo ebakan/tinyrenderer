@@ -113,13 +113,13 @@ defmodule Tinyrenderer.Image do
     x_max = x_coords |> Enum.max |> min(image.width - 1) |> max(0)
     y_min = y_coords |> Enum.min |> max(0) |> min(image.height - 1)
     y_max = y_coords |> Enum.max |> min(image.height - 1) |> max(0)
+    x_size = x_max - x_min + 1
+    y_size = y_max - y_min + 1
     [v0, v1, v2] = vertices
     z_vec = %{x: v0.z, y: v1.z, z: v2.z}
-    pixels = Enum.map(x_min..x_max, fn(x) ->
-      Enum.map(y_min..y_max, fn(y) ->
-        %{x: x, y: y}
-      end)
-    end) |> List.flatten
+    pixels = Enum.map(0..(x_size * y_size), fn(i) ->
+      %{x: rem(i, x_size) + x_min, y: div(i, x_size) + y_min}
+    end)
     pixels
     |> Enum.map(&({&1, barycentric_coords(&1, vertices)}))
     |> Enum.reject(&(&1 |> elem(1) |> Map.values |> Enum.any?(fn(v) -> v < 0 end)))
