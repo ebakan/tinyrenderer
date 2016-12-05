@@ -1,7 +1,4 @@
-alias Tinyrenderer.Image
-alias Tinyrenderer.OBJ.Model
-alias Tinyrenderer.Shader
-alias Tinyrenderer.Vector
+alias Tinyrenderer.*
 
 size = 1000
 

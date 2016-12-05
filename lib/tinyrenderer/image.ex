@@ -1,8 +1,7 @@
 defmodule Tinyrenderer.Image do
   # Functions for reading, manipulating, and writing images
   alias __MODULE__
-  alias Tinyrenderer.{Vector, Matrix, Shader}
-  alias Tinyrenderer.OBJ.Model
+  alias Tinyrenderer.{Model, Vector, Matrix, Shader}
 
   defstruct [:pixel_data, :width, :height]
 

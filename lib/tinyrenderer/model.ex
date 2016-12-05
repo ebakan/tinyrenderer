@@ -1,4 +1,4 @@
-defmodule Tinyrenderer.OBJ.Model do
+defmodule Tinyrenderer.Model do
   # Module for serializing and deserializing Wavefront .obj files
   alias __MODULE__
 
