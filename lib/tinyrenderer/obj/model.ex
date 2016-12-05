@@ -70,13 +70,13 @@ defmodule Tinyrenderer.OBJ.Model do
       #{model.vertices |> Enum.map(fn(v) -> "v #{v.x} #{v.y} #{v.z}\n" end)}
       #{model.textures |> Enum.map(fn(vt) -> "vt #{vt.u} #{vt.v} #{vt.w}\n" end)}
       #{model.normals |> Enum.map(fn(vn) -> "vn #{vn.x} #{vn.y} #{vn.z}\n" end)}
-      #{model.faces |> Enum.map(fn(vn) ->
-        case vn do
+      #{model.faces |> Enum.map(fn(f) ->
+        case f do
           %{vertex: v, texture: vt, normal: vn} -> "f #{v + 1}/#{vt + 1}/#{vn + 1}\n"
           %{vertex: v, normal: vn} -> "f #{v + 1}//#{vn + 1}\n"
           %{vertex: v, texture: vt} -> "f #{v + 1}/#{vt + 1}\n"
           %{vertex: v} -> "f #{v + 1}\n"
-          _ -> raise ArgumentError, message: "Invalid face #{vn |> inspect}"
+          _ -> raise ArgumentError, message: "Invalid face #{f |> inspect}"
         end
       end)}
       """
@@ -98,5 +98,13 @@ defmodule Tinyrenderer.OBJ.Model do
   # `String.to_float` will fail on
   defp parse_float(str) do
     str |> Float.parse |> elem(0)
+  end
+
+  def map_face(model, face) do
+    %{
+      vertex: face.vertex && model.vertices |> Enum.at(face.vertex),
+      texture: face.texture && model.textures |> Enum.at(face.texture),
+      normal: face.normal && model.normals |> Enum.at(face.normal),
+    }
   end
 end

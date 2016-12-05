@@ -21,12 +21,7 @@ defmodule Tinyrenderer.Matrix do
   end
 
   def from_vector(%{x: x, y: y, z: z}) do
-    [
-      [x],
-      [y],
-      [z],
-      [1]
-    ]
+    [ [x], [y], [z], [1] ]
   end
 
   def to_vector([[x], [y], [z], [c]]) do

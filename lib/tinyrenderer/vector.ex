@@ -52,4 +52,25 @@ defmodule Tinyrenderer.Vector do
     end)
     |> Map.new
   end
+
+  def uvw_to_xyz(vertex) do
+    %{x: vertex.u, y: vertex.v, z: vertex.w}
+  end
+
+  def barycentric_coords(p, [v0, v1, v2]) do
+    u = Vector.cross(%{x: v2.x - v0.x, y: v1.x - v0.x, z: v0.x - p.x},
+                     %{x: v2.y - v0.y, y: v1.y - v0.y, z: v0.y - p.y})
+    if abs(u.z) < 1 do
+      %{x: -1, y: 1, z: 1} # triangle is degenerate
+    else
+      %{x: 1 - (u.x + u.y) / u.z, y: u.y / u.z, z: u.x / u.z}
+    end
+  end
+
+  def inv_barycentric_coords(b_coord, [v0, v1, v2]) do
+    Vector.add(Vector.mul(v0, b_coord.x),
+               Vector.add(Vector.mul(v1, b_coord.y),
+                          Vector.mul(v2, b_coord.z)))
+  end
+
 end
