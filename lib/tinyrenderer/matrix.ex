@@ -24,9 +24,10 @@ defmodule Tinyrenderer.Matrix do
     [ [x], [y], [z], [1] ]
   end
 
-  def to_vector([[x], [y], [z], [c]]) do
-    %{x: x / c, y: y / c, z: z / c}
-  end
+  def to_vector([[x], [y], [z]]), do: to_vector([x, y, z])
+  def to_vector([[x], [y], [z], [c]]), do: to_vector([x, y, z, c])
+  def to_vector([x, y, z]), do: %{x: x, y: y, z: z}
+  def to_vector([x, y, z, c]), do: %{x: x / c, y: y / c, z: z / c}
 
   def rows(m), do: length(m)
   def cols(m), do: m |> Enum.at(0) |> length
@@ -47,6 +48,25 @@ defmodule Tinyrenderer.Matrix do
         end)
         |> Enum.sum
       end)
+    end)
+  end
+
+  def set_col(matrix, i, vector) when is_map(vector) do
+    set_col(matrix, i, vector |> Map.values)
+  end
+  def set_col(matrix, i, vector) do
+    matrix
+    |> Enum.with_index
+    |> Enum.map(fn{row, j} ->
+      row |> List.replace_at(i, vector |> Enum.at(j))
+    end)
+  end
+
+  def transpose(matrix) do
+    matrix
+    |> Enum.with_index
+    |> Enum.reduce(Matrix.new(cols(matrix), rows(matrix)), fn({row, i}, matrix) ->
+      matrix |> set_col(i, row)
     end)
   end
 end

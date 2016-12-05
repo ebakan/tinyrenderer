@@ -66,11 +66,4 @@ defmodule Tinyrenderer.Vector do
       %{x: 1 - (u.x + u.y) / u.z, y: u.y / u.z, z: u.x / u.z}
     end
   end
-
-  def inv_barycentric_coords(b_coord, [v0, v1, v2]) do
-    Vector.add(Vector.mul(v0, b_coord.x),
-               Vector.add(Vector.mul(v1, b_coord.y),
-                          Vector.mul(v2, b_coord.z)))
-  end
-
 end

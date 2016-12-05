@@ -106,7 +106,12 @@ defmodule Tinyrenderer.Image do
     end)
   end
 
-  def draw_triangle(image, vertices, zbuffer, shader) do
+  def draw_triangle(image, zbuffer, shader, viewport) do
+    vertices = viewport
+               |> Matrix.mul(shader.triangle)
+               |> Matrix.transpose
+               |> Enum.map(&Matrix.to_vector/1)
+               |> Enum.map(&Vector.round_values/1)
     x_coords = vertices |> Enum.map(&Map.get(&1, :x))
     y_coords = vertices |> Enum.map(&Map.get(&1, :y))
     x_min = x_coords |> Enum.min |> max(0) |> min(image.width - 1)
@@ -123,14 +128,14 @@ defmodule Tinyrenderer.Image do
     pixels
     |> Enum.map(&({&1, Vector.barycentric_coords(&1, vertices)}))
     |> Enum.reject(&(&1 |> elem(1) |> Map.values |> Enum.any?(fn(v) -> v < 0 end)))
-    |> Enum.map(fn {pixel, b_coords} -> {pixel |> Map.merge(%{z: Vector.dot(z_vec, b_coords)}), b_coords} end)
     |> Enum.reduce({zbuffer, shader, image}, fn({pixel, b_coords}, {zbuf, shdr, img}) ->
+      z = z_vec |> Vector.dot(b_coords)
       zbuf_val = zbuf[pixel.y * image.width + pixel.x]
-      if is_nil(zbuf_val) or zbuf_val < pixel.z do
+      if is_nil(zbuf_val) or zbuf_val < z do
         case shdr |> shdr.__struct__.fragment(b_coords) do
           {:ok, shdr, color} ->
             {
-              %{zbuf | pixel.y * image.width + pixel.x => pixel.z},
+              %{zbuf | pixel.y * image.width + pixel.x => z},
               shdr,
               img |> set(pixel.x, pixel.y, color)
             }
@@ -171,9 +176,11 @@ defmodule Tinyrenderer.Image do
     model_view = eye |> look_at(center, up)
     projection = Matrix.identity(4) |> Matrix.set(3, 2, -1 / (eye |> Vector.sub(center) |> Vector.norm))
     viewport = gen_viewport(x: width / 8, y: height / 8, w: width * 3 / 4, h: height * 3 / 4, depth: depth)
-    transform = viewport
-                |> Matrix.mul(projection)
-                |> Matrix.mul(model_view)
+    transform = projection |> Matrix.mul(model_view)
+    light_dir = transform
+                |> Matrix.mul(light_dir)
+                |> Matrix.to_vector
+                |> Vector.normalize
 
     zbuffer = (0..(width * height))
               |> Enum.map(&({&1, nil}))
@@ -186,13 +193,12 @@ defmodule Tinyrenderer.Image do
 
     model.faces
     |> Enum.reduce({zbuffer, shader, image}, fn(face, {zbuf, shdr, img}) ->
-      {shdr, vertices} = face
-                         |> Enum.map(&Model.map_face(model, &1))
-                         |> Enum.with_index
-                         |> Enum.reduce({shdr, []}, fn ({v, i}, {s, list}) ->
-                           {s, new_v} = s |> shdr.__struct__.vertex(v, i)
-                           {s, [new_v | list]}
-                         end)
+      shdr = face
+             |> Enum.map(&Model.map_face(model, &1))
+             |> Enum.with_index
+             |> Enum.reduce(shdr, fn ({v, i}, s) ->
+               s |> shdr.__struct__.vertex(v, i)
+             end)
       shdr =
         if opts[:color] do
           color = opts[:color]
@@ -202,7 +208,7 @@ defmodule Tinyrenderer.Image do
         else
           shdr
         end
-      draw_triangle(img, vertices |> Enum.reverse, zbuf, shdr)
+      draw_triangle(img, zbuf, shdr, viewport)
     end) |> elem(2)
   end
 
